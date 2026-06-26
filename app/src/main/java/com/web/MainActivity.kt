@@ -13,9 +13,10 @@ class MainActivity : Activity() {
 
     private lateinit var webViewContainer: FrameLayout
     private lateinit var webView: WebView
+    private var popupWebView: WebView? = null // Menampung WebView sementara untuk popup login
     private lateinit var webProgress: ProgressBar
 
-    // User-Agent Infinix Anda (Tanda "; wv" dan "Version/4.0" dihapus untuk lolos blokir Google)
+    // User-Agent Infinix Anda (Tanda "; wv" dan "Version/4.0" dihapus)
     private val globalUserAgent = "Mozilla/5.0 (Linux; Android 13; Infinix X6528B Build/TP1A.220624.014) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.7727.55 Mobile Safari/537.36"
     private val TIKTOK_LIVE_URL = "https://www.tiktok.com/live"
 
@@ -45,11 +46,9 @@ class MainActivity : Activity() {
             mediaPlaybackRequiresUserGesture = false
             userAgentString = globalUserAgent
             
-            // Optimasi tampilan Mobile
             useWideViewPort = true
             loadWithOverviewMode = true
             
-            // Mengizinkan WebView menangani popup (penting untuk alur login Google)
             javaScriptCanOpenWindowsAutomatically = true
             setSupportMultipleWindows(true)
         }
@@ -65,14 +64,12 @@ class MainActivity : Activity() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val url = request.url.toString()
                 
-                // Izinkan domain utama untuk dimuat di dalam aplikasi
                 if (url.startsWith("https://accounts.google.com") || 
                     url.startsWith("https://myaccount.google.com") || 
                     url.contains("tiktok.com")) {
                     return false
                 }
 
-                // Blokir pengalihan ke PlayStore, Intent, atau aplikasi TikTok Native
                 if (url.startsWith("intent://") || url.startsWith("market://") ||
                     url.startsWith("tiktok://") || url.startsWith("snssdk") ||
                     url.contains("play.google.com/store")) {
@@ -80,11 +77,6 @@ class MainActivity : Activity() {
                 }
                 
                 return false
-            }
-
-            override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
-                super.onReceivedError(view, request, error)
-                // Jika terjadi error saat memuat, biarkan default agar tidak macet di layar putih
             }
         }
 
@@ -94,25 +86,67 @@ class MainActivity : Activity() {
                 webProgress.progress = newProgress
             }
             
-            // Menangkap jendela baru (popup login) dan memuatnya di WebView yang sama
+            // ✅ PERBAIKAN: Membuat WebView baru khusus untuk Popup Login
             override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: android.os.Message): Boolean {
+                val newWebView = WebView(this@MainActivity).apply {
+                    layoutParams = FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT
+                    )
+                }
+
+                newWebView.settings.apply {
+                    javaScriptEnabled = true
+                    domStorageEnabled = true
+                    userAgentString = globalUserAgent
+                    setSupportMultipleWindows(true)
+                    javaScriptCanOpenWindowsAutomatically = true
+                }
+
+                newWebView.webChromeClient = object : WebChromeClient() {
+                    override fun onCloseWindow(window: WebView) {
+                        // Tutup dan hancurkan WebView popup saat login selesai
+                        webViewContainer.removeView(window)
+                        window.destroy()
+                        popupWebView = null
+                    }
+                }
+
+                newWebView.webViewClient = object : WebViewClient() {
+                    override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                        return false
+                    }
+                }
+
+                // Tumpuk WebView baru di atas WebView utama
+                webViewContainer.addView(newWebView)
+                popupWebView = newWebView
+
+                // Masukkan WebView baru ke dalam sistem transportasi
                 val transport = resultMsg.obj as WebView.WebViewTransport
-                transport.webView = webView
+                transport.webView = newWebView
                 resultMsg.sendToTarget()
+                
                 return true
             }
         }
 
-        // Header custom sesuai permintaan
         val headers = mutableMapOf<String, String>()
         headers["Accept"] = "application/json"
-        
-        // Memuat URL TikTok Live
         webView.loadUrl(TIKTOK_LIVE_URL, headers)
     }
 
     override fun onBackPressed() {
-        if (webView.canGoBack()) {
+        // Tangani tombol "kembali" jika sedang berada di layar popup login
+        if (popupWebView != null) {
+            if (popupWebView!!.canGoBack()) {
+                popupWebView!!.goBack()
+            } else {
+                webViewContainer.removeView(popupWebView)
+                popupWebView!!.destroy()
+                popupWebView = null
+            }
+        } else if (webView.canGoBack()) {
             webView.goBack()
         } else {
             super.onBackPressed()
@@ -121,6 +155,7 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        popupWebView?.destroy()
         webView.destroy()
     }
 }
