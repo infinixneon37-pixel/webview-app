@@ -69,4 +69,3 @@ dependencies {
     // Swiperefreshlayout
     implementation(libs.androidx.swiperefreshlayout)
 }
-dependencies { implementation("io.github.maitrungduc1410:ffmpeg-kit-https:6.0.1") }

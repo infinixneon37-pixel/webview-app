@@ -1,5 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Aplikasi Saya</string>
+    <string name="app_name">TikTok Live</string>
+
     <string name="error_title">Oops!</string>
     <string name="button_retry">TRY AGAIN</string>
     <string name="error_message">Something went wrong.</string>
