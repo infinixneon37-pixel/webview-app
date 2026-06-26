@@ -18,7 +18,7 @@ class MainActivity : Activity() {
     // User-Agent HP Anda (Infinix X6528B). 
     // Catatan: Tanda "; wv" dan "Version/4.0" DIHAPUS agar lolos dari blokir login Google.
     private val globalUserAgent = "Mozilla/5.0 (Linux; Android 13; Infinix X6528B Build/TP1A.220624.014) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.7727.55 Mobile Safari/537.36"
-    private val FACEBOOK_URL = "https://m.facebook.com/"
+    private val INTERNET_ARCHIVE_URL = "https://archive.org/"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -61,12 +61,12 @@ class MainActivity : Activity() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val url = request.url.toString()
                 
-                // Pastikan domain Google (untuk login) dan Facebook diizinkan dimuat di dalam aplikasi
-                if (url.startsWith("https://m.facebook.com/login/") || url.contains("facebook.com")) {
+                // Pastikan domain Google (untuk login) dan TikTok diizinkan dimuat di dalam aplikasi
+                if (url.startsWith("https://accounts.google.com") || url.contains("archive.org/signup")) {
                     return false
                 }
 
-                // Blokir skema URL eksternal agar tidak dialihkan ke PlayStore atau Aplikasi Native Facebook
+                // Blokir skema URL eksternal agar tidak dialihkan ke PlayStore atau Aplikasi Native TikTok
                 if (url.startsWith("intent://") || url.startsWith("market://") ||
                     url.startsWith("tiktok://") || url.startsWith("snssdk") ||
                     url.contains("play.google.com/store")) {
@@ -84,10 +84,10 @@ class MainActivity : Activity() {
             }
         }
 
-        // Memuat URL FACEBOOK dengan custom header
+        // Memuat URL Internet Archive dengan custom header
         val headers = mutableMapOf<String, String>()
         headers["Accept"] = "application/json"
-        webView.loadUrl(FACEBOOK_URL, headers)
+        webView.loadUrl(INTERNET_ARCHIVE_URL, headers)
     }
 
     override fun onBackPressed() {
