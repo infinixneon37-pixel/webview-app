@@ -15,10 +15,9 @@ class MainActivity : Activity() {
     private lateinit var webView: WebView
     private lateinit var webProgress: ProgressBar
 
-    // User-Agent HP Anda (Infinix X6528B). 
-    // Catatan: Tanda "; wv" dan "Version/4.0" DIHAPUS agar lolos dari blokir login Google.
+    // User-Agent Infinix Anda (Tanda "; wv" dan "Version/4.0" dihapus untuk lolos blokir Google)
     private val globalUserAgent = "Mozilla/5.0 (Linux; Android 13; Infinix X6528B Build/TP1A.220624.014) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.7727.55 Mobile Safari/537.36"
-    private val INTERNET_ARCHIVE_URL = "https://archive.org/"
+    private val TIKTOK_LIVE_URL = "https://www.tiktok.com/live"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,7 +33,7 @@ class MainActivity : Activity() {
     private fun setupWebView() {
         webView = WebView(this).apply {
             layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, 
+                FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
             )
         }
@@ -45,9 +44,14 @@ class MainActivity : Activity() {
             domStorageEnabled = true
             mediaPlaybackRequiresUserGesture = false
             userAgentString = globalUserAgent
-            // Mengoptimalkan tampilan untuk mobile
+            
+            // Optimasi tampilan Mobile
             useWideViewPort = true
             loadWithOverviewMode = true
+            
+            // Mengizinkan WebView menangani popup (penting untuk alur login Google)
+            javaScriptCanOpenWindowsAutomatically = true
+            setSupportMultipleWindows(true)
         }
 
         CookieManager.getInstance().apply {
@@ -61,12 +65,14 @@ class MainActivity : Activity() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val url = request.url.toString()
                 
-                // Pastikan domain Google (untuk login) dan TikTok diizinkan dimuat di dalam aplikasi
-                if (url.startsWith("https://accounts.google.com") || url.contains("archive.org/signup")) {
+                // Izinkan domain utama untuk dimuat di dalam aplikasi
+                if (url.startsWith("https://accounts.google.com") || 
+                    url.startsWith("https://myaccount.google.com") || 
+                    url.contains("tiktok.com")) {
                     return false
                 }
 
-                // Blokir skema URL eksternal agar tidak dialihkan ke PlayStore atau Aplikasi Native TikTok
+                // Blokir pengalihan ke PlayStore, Intent, atau aplikasi TikTok Native
                 if (url.startsWith("intent://") || url.startsWith("market://") ||
                     url.startsWith("tiktok://") || url.startsWith("snssdk") ||
                     url.contains("play.google.com/store")) {
@@ -75,6 +81,11 @@ class MainActivity : Activity() {
                 
                 return false
             }
+
+            override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                super.onReceivedError(view, request, error)
+                // Jika terjadi error saat memuat, biarkan default agar tidak macet di layar putih
+            }
         }
 
         webView.webChromeClient = object : WebChromeClient() {
@@ -82,12 +93,22 @@ class MainActivity : Activity() {
                 webProgress.visibility = if (newProgress < 100) View.VISIBLE else View.GONE
                 webProgress.progress = newProgress
             }
+            
+            // Menangkap jendela baru (popup login) dan memuatnya di WebView yang sama
+            override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: android.os.Message): Boolean {
+                val transport = resultMsg.obj as WebView.WebViewTransport
+                transport.webView = webView
+                resultMsg.sendToTarget()
+                return true
+            }
         }
 
-        // Memuat URL Internet Archive dengan custom header
+        // Header custom sesuai permintaan
         val headers = mutableMapOf<String, String>()
         headers["Accept"] = "application/json"
-        webView.loadUrl(INTERNET_ARCHIVE_URL, headers)
+        
+        // Memuat URL TikTok Live
+        webView.loadUrl(TIKTOK_LIVE_URL, headers)
     }
 
     override fun onBackPressed() {
