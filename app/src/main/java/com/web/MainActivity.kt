@@ -34,7 +34,8 @@ class MainActivity : Activity() {
     private lateinit var btnRecordToggle: ImageView
     private lateinit var webProgress: ProgressBar
 
-    private val globalUserAgent = "Mozilla/5.0 (Linux; Android 13; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36"
+    // ✅ 1. Update User-Agent ke Windows 7 Chrome 109
+    private val globalUserAgent = "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.5414.74 Safari/537.36"
     private val HOME_URL = "https://duckduckgo.com/"
 
     class TabRecordState {
@@ -111,7 +112,7 @@ class MainActivity : Activity() {
             } else false
         }
 
-        btnHome.setOnClickListener { getActiveWebView()?.loadUrl(HOME_URL) }
+        btnHome.setOnClickListener { loadUrlWithHeaders(getActiveWebView(), HOME_URL) }
 
         btnTabs.setOnClickListener { showTabSwitcherDialog() }
 
@@ -159,7 +160,7 @@ class MainActivity : Activity() {
         tabs.add(newTab)
         switchTab(tabs.size - 1)
 
-        if (!url.isNullOrEmpty()) newTab.loadUrl(url)
+        if (!url.isNullOrEmpty()) loadUrlWithHeaders(newTab, url)
     }
 
     private fun switchTab(index: Int) {
@@ -183,7 +184,7 @@ class MainActivity : Activity() {
 
     private fun closeTab(index: Int) {
         if (tabs.size <= 1) {
-            tabs[0].loadUrl(HOME_URL)
+            loadUrlWithHeaders(tabs[0], HOME_URL)
             return
         }
 
@@ -259,13 +260,21 @@ class MainActivity : Activity() {
         }
     }
 
+    // ✅ 2. Fungsi helper untuk menyuntikkan header Accept: application/json
+    private fun loadUrlWithHeaders(webView: WebView?, url: String) {
+        val headers = mutableMapOf<String, String>()
+        headers["Accept"] = "application/json"
+        webView?.loadUrl(url, headers)
+    }
+
     private fun loadWebOrSearch(query: String) {
         val activeWebView = getActiveWebView() ?: return
         if (query.isEmpty()) return
         val url = if (query.contains(".") && !query.contains(" ")) {
             if (query.startsWith("http")) query else "https://$query"
         } else "https://duckduckgo.com/?q=${Uri.encode(query)}"
-        activeWebView.loadUrl(url)
+        
+        loadUrlWithHeaders(activeWebView, url)
     }
 
     private fun hideKeyboard() {
@@ -285,6 +294,23 @@ class MainActivity : Activity() {
     }
 
     private inner class MyWebViewClient : WebViewClient() {
+        
+        // ✅ 3. Pemblokiran Redirect TikTok / Intent Eskternal
+        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+            val url = request.url.toString()
+            
+            // Blokir deep link seperti intent://, tiktok://, snssdk://, dan market://
+            if (url.startsWith("intent://") || url.startsWith("market://") ||
+                url.startsWith("tiktok://") || url.startsWith("snssdk") ||
+                url.contains("play.google.com/store")) {
+                
+                // Return true berarti "Aplikasi sudah menangani URL ini, WebView jangan lakukan apa-apa"
+                return true 
+            }
+            // Biarkan WebView memuat HTTP/HTTPS secara normal
+            return false
+        }
+
         override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
             super.doUpdateVisitedHistory(view, url, isReload)
             if (view == getActiveWebView()) urlInput.setText(url)
@@ -294,39 +320,39 @@ class MainActivity : Activity() {
             super.onPageFinished(view, url)
             CookieManager.getInstance().flush()
 
-            val jsInjector = """javascript:(function() { 
-                if (window.hasTangoHook) return; window.hasTangoHook = true; 
-                const originalFetch = window.fetch; 
-                window.fetch = async function() { 
-                   const response = await originalFetch.apply(this, arguments); 
-                   const clone = response.clone(); 
-                   const reqUrl = arguments[0] instanceof Request ? arguments[0].url : arguments[0]; 
-                   if (reqUrl && (reqUrl.includes('stream-pullevents.tango.me') || reqUrl.includes('gateway.tango.me'))) { 
-                       clone.text().then(text => { 
-                           if (text.includes('"status":"ENDED"') || text.includes('"status":"CLOSED"') || text.includes('"status":"OFFLINE"') || text.includes('live_ended') || text.includes('room_closed')) { 
-                               if (window.Android) window.Android.onStreamEnded('Sinyal 100%: Host Menutup Siaran!'); 
-                           } 
-                       }).catch(e => {}); 
-                   } 
-                   return response; 
-                }; 
-                const originalXhrOpen = XMLHttpRequest.prototype.open; 
-                XMLHttpRequest.prototype.open = function(method, url) { 
-                   this.addEventListener('load', function() { 
-                       if (url && (url.includes('stream-pullevents.tango.me') || url.includes('gateway.tango.me'))) { 
-                           try { 
-                               const text = this.responseText; 
-                               if (text.includes('"status":"ENDED"') || text.includes('"status":"CLOSED"') || text.includes('"status":"OFFLINE"') || text.includes('live_ended') || text.includes('room_closed')) { 
-                                   if (window.Android) window.Android.onStreamEnded('Sinyal 100%: Host Menutup Siaran!'); 
-                               } 
-                           } catch(e) {} 
-                       } 
-                   }); 
-                   originalXhrOpen.apply(this, arguments); 
-                }; 
-                Object.defineProperty(document, 'hidden', {value: false, writable: false}); 
-                Object.defineProperty(document, 'visibilityState', {value: 'visible', writable: false}); 
-                document.addEventListener('visibilitychange', function(e) { e.stopImmediatePropagation(); }, true); 
+            val jsInjector = """javascript:(function() {
+                if (window.hasTangoHook) return; window.hasTangoHook = true;
+                const originalFetch = window.fetch;
+                window.fetch = async function() {
+                   const response = await originalFetch.apply(this, arguments);
+                   const clone = response.clone();
+                   const reqUrl = arguments[0] instanceof Request ? arguments[0].url : arguments[0];
+                   if (reqUrl && (reqUrl.includes('stream-pullevents.tango.me') || reqUrl.includes('gateway.tango.me'))) {
+                       clone.text().then(text => {
+                           if (text.includes('"status":"ENDED"') || text.includes('"status":"CLOSED"') || text.includes('"status":"OFFLINE"') || text.includes('live_ended') || text.includes('room_closed')) {
+                               if (window.Android) window.Android.onStreamEnded('Sinyal 100%: Host Menutup Siaran!');
+                           }
+                       }).catch(e => {});
+                   }
+                   return response;
+                };
+                const originalXhrOpen = XMLHttpRequest.prototype.open;
+                XMLHttpRequest.prototype.open = function(method, url) {
+                   this.addEventListener('load', function() {
+                       if (url && (url.includes('stream-pullevents.tango.me') || url.includes('gateway.tango.me'))) {
+                           try {
+                               const text = this.responseText;
+                               if (text.includes('"status":"ENDED"') || text.includes('"status":"CLOSED"') || text.includes('"status":"OFFLINE"') || text.includes('live_ended') || text.includes('room_closed')) {
+                                   if (window.Android) window.Android.onStreamEnded('Sinyal 100%: Host Menutup Siaran!');
+                               }
+                           } catch(e) {}
+                       }
+                   });
+                   originalXhrOpen.apply(this, arguments);
+                };
+                Object.defineProperty(document, 'hidden', {value: false, writable: false});
+                Object.defineProperty(document, 'visibilityState', {value: 'visible', writable: false});
+                document.addEventListener('visibilitychange', function(e) { e.stopImmediatePropagation(); }, true);
                 setInterval(function() { document.querySelectorAll('video').forEach(v => { v.muted = true; v.play().catch(e=>{}); }); }, 1000);
             })()"""
 
