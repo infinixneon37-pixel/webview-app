@@ -15,8 +15,9 @@ class MainActivity : Activity() {
     private lateinit var webView: WebView
     private lateinit var webProgress: ProgressBar
 
-    // User-Agent Windows 7 Chrome 109 
-    private val globalUserAgent = "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.5414.74 Safari/537.36"
+    // User-Agent HP Anda (Infinix X6528B). 
+    // Catatan: Tanda "; wv" dan "Version/4.0" DIHAPUS agar lolos dari blokir login Google.
+    private val globalUserAgent = "Mozilla/5.0 (Linux; Android 13; Infinix X6528B Build/TP1A.220624.014) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.7727.55 Mobile Safari/537.36"
     private val TIKTOK_LIVE_URL = "https://www.tiktok.com/live"
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,6 +45,9 @@ class MainActivity : Activity() {
             domStorageEnabled = true
             mediaPlaybackRequiresUserGesture = false
             userAgentString = globalUserAgent
+            // Mengoptimalkan tampilan untuk mobile
+            useWideViewPort = true
+            loadWithOverviewMode = true
         }
 
         CookieManager.getInstance().apply {
@@ -54,14 +58,21 @@ class MainActivity : Activity() {
         }
 
         webView.webViewClient = object : WebViewClient() {
-            // Blokir Redirect paksa ke Aplikasi TikTok / PlayStore
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val url = request.url.toString()
+                
+                // Pastikan domain Google (untuk login) dan TikTok diizinkan dimuat di dalam aplikasi
+                if (url.startsWith("https://accounts.google.com") || url.contains("tiktok.com")) {
+                    return false
+                }
+
+                // Blokir skema URL eksternal agar tidak dialihkan ke PlayStore atau Aplikasi Native TikTok
                 if (url.startsWith("intent://") || url.startsWith("market://") ||
                     url.startsWith("tiktok://") || url.startsWith("snssdk") ||
                     url.contains("play.google.com/store")) {
                     return true 
                 }
+                
                 return false
             }
         }
@@ -73,7 +84,7 @@ class MainActivity : Activity() {
             }
         }
 
-        // Load halaman dengan custom header
+        // Memuat URL TikTok Live dengan custom header
         val headers = mutableMapOf<String, String>()
         headers["Accept"] = "application/json"
         webView.loadUrl(TIKTOK_LIVE_URL, headers)
